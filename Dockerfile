@@ -9,4 +9,6 @@ RUN pip install boto3
 
 COPY ./scaling_service.py /
 
+ENTRYPOINT /usr/bin/python /scaling_service.py
+
 
