@@ -9,5 +9,5 @@ RUN pip install boto3
 
 COPY ./scaling_service.py /
 
-ENTRYPOINT  ["python /scaling_service.py"]
+ENTRYPOINT  ["/bin/bash"]
 
