@@ -4,16 +4,19 @@ from __future__ import division
 import boto3
 import json
 import time
+import os
+
+queue       = os.environ['SQS_QUEUE']
+ddb_table   = os.environ['DDB_TABLE']
+ecs_cluster = os.environ['ECS_CLUSTER']
+aws_region  = os.environ['AWS_REGION']
+
+boto3.setup_default_session(region_name=aws_region)
 
 sqs   = boto3.client('sqs')
 cw    = boto3.client('cloudwatch')
 ddb   = boto3.client('dynamodb')
 ecs   = boto3.client('ecs')
-
-queue     = sqs.get_queue_url(QueueName='ecs-test-AlarmQueue-YNXG4FOEBU9W')
-ddb_table = "ecs-test-ScalingConfigTable-URUWEQPLJ038"
-
-ecs_cluster = "ecs-test-ECSCluster-1HWQ87WA3Z8MH"
 
 def parse_alarm_descr(alarm_descr):
     alarm_descr_dict = None
