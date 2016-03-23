@@ -6,7 +6,7 @@ import json
 import time
 import os
 
-queue       = os.environ['SQS_QUEUE']
+queue_url   = os.environ['SQS_QUEUE_URL']
 ddb_table   = os.environ['DDB_TABLE']
 ecs_cluster = os.environ['ECS_CLUSTER']
 aws_region  = os.environ['AWS_REGION']
@@ -44,7 +44,7 @@ def delete_message(message):
     print "Deleting message id=%s" % message_id
     
     sqs.delete_message(
-        QueueUrl = queue['QueueUrl'],
+        QueueUrl = queue_url,
         ReceiptHandle = receipt_handle
     )
 
@@ -203,7 +203,7 @@ def main():
     while(True):
         print "--- Polling for messages ---"
         messages = sqs.receive_message(
-                                    QueueUrl            = queue['QueueUrl'],
+                                    QueueUrl            = queue_url,
                                     MaxNumberOfMessages = 1,
                                     WaitTimeSeconds     = 20)
     
