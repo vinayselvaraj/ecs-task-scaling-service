@@ -7,7 +7,6 @@ import time
 import os
 
 queue_url   = os.environ['SQS_QUEUE_URL']
-ddb_table   = os.environ['DDB_TABLE']
 ecs_cluster = os.environ['ECS_CLUSTER']
 aws_region  = os.environ['AWS_REGION']
 
@@ -15,7 +14,6 @@ boto3.setup_default_session(region_name=aws_region)
 
 sqs   = boto3.client('sqs')
 cw    = boto3.client('cloudwatch')
-ddb   = boto3.client('dynamodb')
 ecs   = boto3.client('ecs')
 
 def parse_alarm_descr(alarm_descr):
@@ -59,34 +57,30 @@ def get_desired_task_count(service_name):
     service = desc_svc_result['services'][0]
     return service['desiredCount']
 
-def get_last_scaling_activity(alarm_name):
-    ddb_response = ddb.get_item(
-        TableName=ddb_table,
-        Key = {
-            'AlarmId' : {
-                'S' : alarm_name
-            }
-        }
+def get_last_service_event_time(ecs_service_name):
+    
+    desc_svc_result = ecs.describe_services(
+        cluster = ecs_cluster,
+        services = [
+            ecs_service_name
+        ]
     )
     
-    item = ddb_response.get('Item')
-    if item:
-        return float(item['LastScalingActivity']['N'])
-    else:
-        return None
-
-def update_last_scaling_activity(alarm_name):
-    ddb_response = ddb.put_item(
-        TableName=ddb_table,
-        Item = {
-            'AlarmId' : {
-                'S' : alarm_name
-            },
-            'LastScalingActivity' : {
-                'N' : "%s" % time.time()
-            }
-        }
-    )
+    last_event_time = None
+    
+    service = desc_svc_result['services'][0]
+    events = service['events']
+    for event in events:
+        
+        event_created_time = event['createdAt']
+        
+        if last_event_time == None and event_created_time != None:
+            last_event_time = event_created_time
+        else:
+            if event_created_time != None and event_created_time > last_event_time:
+                last_event_time = event_created_time
+            
+    return time.mktime(event_created_time.timetuple())
 
 def get_new_desired_taskcount(alarm_descr_dict):
     
@@ -137,14 +131,14 @@ def can_scale(alarm_descr_dict, alarm_name):
         print "Unable to scale since new task count == current desired task count"
         return False
     
-    last_scaling_activity = get_last_scaling_activity(alarm_name)
+    last_event_time = get_last_service_event_time(alarm_descr_dict['ecs_service'])
     
-    if last_scaling_activity is None:
+    if last_event_time is None:
         return True
     
     # If last scaling activity + cooldown is before now then return true
     current_time = time.time()
-    if last_scaling_activity + cooldown < current_time:
+    if last_event_time + cooldown < current_time:
         return True
     else:
         print "Can't scale now because cooldown period has not passed"
@@ -193,7 +187,6 @@ def handle_message(message):
     if can_scale(alarm_descr_dict, alarm_name):
         new_desired_task_count = get_new_desired_taskcount(alarm_descr_dict)
         scale(service_name, new_desired_task_count)
-        update_last_scaling_activity(alarm_name)
     else:
         print "Skipping scaling activity"
     
